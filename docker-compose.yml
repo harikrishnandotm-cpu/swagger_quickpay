@@ -1,0 +1,10 @@
+
+services:
+  quickpay-swagger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quickpay-swagger
+    ports:
+      - "9000:9000"
+    restart: unless-stopped

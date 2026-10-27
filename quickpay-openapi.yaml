@@ -1,0 +1,452 @@
+
+openapi: 3.0.3
+
+info:
+  title: QuickPay Demo API
+  version: 1.0.0
+  description: |
+    OpenAPI contract for QuickPay demo payment application.
+    Covers health, authentication, customer profile, merchants,
+    payments, transactions, and notifications.
+
+    Demo only. No external payment provider is charged.
+    Confirm the gateway URL, response codes, and error schemas
+    against the running application before using this as the final contract.
+
+servers:
+  - url: http://localhost:8080
+    description: Local gateway (confirm configured port)
+
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Customer
+  - name: Merchants
+  - name: Payments
+  - name: Transactions
+  - name: Notifications
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Check service health
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+                service: quickpay
+
+  /api/auth/signup:
+    post:
+      tags: [Authentication]
+      summary: Register a customer
+      operationId: signup
+      description: |
+        Public endpoint. Email should be normalized to lowercase.
+        Password minimum length is 10 characters and maximum length
+        is 72 UTF-8 bytes, according to the supplied contract.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "200":
+          description: Customer registered; verify actual runtime status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate a customer
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+
+  /api/customers/me:
+    get:
+      tags: [Customer]
+      summary: Get the authenticated customer's profile
+      operationId: getMyProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Customer profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/merchants:
+    get:
+      tags: [Merchants]
+      summary: List active merchants
+      operationId: getMerchants
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active merchants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Merchant"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/payments:
+    post:
+      tags: [Payments]
+      summary: Make a demo payment
+      operationId: createPayment
+      description: |
+        Requires a bearer JWT.
+        Amount must be between 0.01 and 100000.00 inclusive,
+        with no more than two decimal places.
+        No external payment provider is charged.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Payment completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          description: Payment declined, including insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Customer account service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/transactions:
+    get:
+      tags: [Transactions]
+      summary: List the authenticated customer's transactions
+      operationId: getTransactions
+      description: Returns up to 100 latest transactions.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transactions retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: List the authenticated customer's notifications
+      operationId: getNotifications
+      description: |
+        Returns up to 50 latest notifications.
+        Payment notifications may be asynchronous.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Invalid request or business-rule validation failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Unauthorized:
+      description: Missing, invalid, or expired bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Conflict:
+      description: Duplicate customer email, if mapped to HTTP 409
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    UnsupportedMediaType:
+      description: Request Content-Type is unsupported
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+        service:
+          type: string
+          example: quickpay
+      required: [status, service]
+
+    SignupRequest:
+      type: object
+      required: [name, email, phone, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          example: Arun Kumar
+        email:
+          type: string
+          format: email
+          example: arun.qa@example.test
+        phone:
+          type: string
+          maxLength: 32
+          example: "+1 555 0100"
+        password:
+          type: string
+          format: password
+          minLength: 10
+          maxLength: 72
+          example: "QuickPay@2026"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: arun.qa@example.test
+        password:
+          type: string
+          format: password
+          example: "QuickPay@2026"
+
+    CustomerSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        balance:
+          type: number
+          format: double
+          example: 1000.00
+
+    AuthResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: JWT access token
+        customer:
+          $ref: "#/components/schemas/CustomerSummary"
+
+    CustomerProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        status:
+          type: string
+          example: ACTIVE
+        balance:
+          type: number
+          format: double
+          example: 1000.00
+
+    Merchant:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1001
+        name:
+          type: string
+          example: Chennai Fresh Mart
+        category:
+          type: string
+        email:
+          type: string
+          format: email
+
+    PaymentRequest:
+      type: object
+      required: [merchantId, amount]
+      properties:
+        merchantId:
+          type: integer
+          format: int64
+          example: 1001
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          maximum: 100000.00
+          multipleOf: 0.01
+          example: 125.50
+
+    PaymentResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: COMPLETED
+        merchantName:
+          type: string
+        amount:
+          type: number
+          format: double
+        message:
+          type: string
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        paymentId:
+          type: string
+          format: uuid
+        merchantName:
+          type: string
+        amount:
+          type: number
+          format: double
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        paymentId:
+          type: string
+          format: uuid
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      description: |
+        Generic error schema. Adjust to match the actual backend exception handler.
+      properties:
+        message:
+          type: string
+          example: Request validation failed
+        error:
+          type: string
+          example: BAD_REQUEST
+        status:
+          type: integer
+          example: 400
+        timestamp:
+          type: string
+          format: date-time
