@@ -14,8 +14,8 @@ info:
     against the running application before using this as the final contract.
 
 servers:
-  - url: http://16.170.221.74:3000
-    description: Local gateway (confirm configured port)
+  - url: /backend
+    description: QuickPay API via Vercel proxy
 
 tags:
   - name: Health
